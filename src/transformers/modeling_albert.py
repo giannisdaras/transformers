@@ -270,10 +270,9 @@ class AlbertAttention(BertSelfAttention):
             context_layer_with_heads = self.smyrf(query_layer.reshape(-1, N, dim),
                                                   key_layer.reshape(-1, N, dim),
                                                   value_layer.reshape(-1, N, dim),
-                                                  norm_factor=self.attention_head_size)
+                                                  norm_factor=math.sqrt(self.attention_head_size))
             # concat heads
             context_layer = context_layer_with_heads.reshape(query_layer.shape).permute(0, 2, 1, 3)
-
         # Should find a better way to do this
         w = (
             self.dense.weight.t()
