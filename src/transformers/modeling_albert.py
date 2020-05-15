@@ -267,7 +267,10 @@ class AlbertAttention(BertSelfAttention):
             context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
         else:
             bs, nH, N, dim = query_layer.shape
-            context_layer_with_heads = self.smyrf(query_layer.reshape(-1, N, dim), key_layer.reshape(-1, N, dim), value_layer.reshape(-1, N, dim))
+            context_layer_with_heads = self.smyrf(query_layer.reshape(-1, N, dim),
+                                                  key_layer.reshape(-1, N, dim),
+                                                  value_layer.reshape(-1, N, dim),
+                                                  norm_factor=self.attention_head_size)
             # concat heads
             context_layer = context_layer_with_heads.reshape(query_layer.shape).permute(0, 2, 1, 3)
 
