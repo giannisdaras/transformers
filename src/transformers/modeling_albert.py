@@ -234,7 +234,7 @@ class AlbertAttention(BertSelfAttention):
         self.all_head_size = self.attention_head_size * self.num_attention_heads
         self.pruned_heads = self.pruned_heads.union(heads)
 
-    def forward(self, input_ids, attention_mask=None, head_mask=None):
+    def forward(self, input_ids, attention_mask=None, head_mask=None, smyrf=False):
         mixed_query_layer = self.query(input_ids)
         mixed_key_layer = self.key(input_ids)
         mixed_value_layer = self.value(input_ids)
@@ -242,8 +242,7 @@ class AlbertAttention(BertSelfAttention):
         query_layer = self.transpose_for_scores(mixed_query_layer)
         key_layer = self.transpose_for_scores(mixed_key_layer)
         value_layer = self.transpose_for_scores(mixed_value_layer)
-
-        if not self.smyrf:
+        if not smyrf:
             # Take the dot product between "query" and "key" to get the raw attention scores.
             attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2))
             attention_scores = attention_scores / math.sqrt(self.attention_head_size)
@@ -304,8 +303,8 @@ class AlbertLayer(nn.Module):
         self.ffn_output = nn.Linear(config.intermediate_size, config.hidden_size)
         self.activation = ACT2FN[config.hidden_act]
 
-    def forward(self, hidden_states, attention_mask=None, head_mask=None):
-        attention_output = self.attention(hidden_states, attention_mask, head_mask)
+    def forward(self, hidden_states, attention_mask=None, head_mask=None, smyrf=False):
+        attention_output = self.attention(hidden_states, attention_mask, head_mask, smyrf=smyrf)
         ffn_output = self.ffn(attention_output[0])
         ffn_output = self.activation(ffn_output)
         ffn_output = self.ffn_output(ffn_output)
@@ -322,12 +321,13 @@ class AlbertLayerGroup(nn.Module):
         self.output_hidden_states = config.output_hidden_states
         self.albert_layers = nn.ModuleList([AlbertLayer(config) for _ in range(config.inner_group_num)])
 
-    def forward(self, hidden_states, attention_mask=None, head_mask=None):
+
+    def forward(self, hidden_states, attention_mask=None, head_mask=None, smyrf=False):
         layer_hidden_states = ()
         layer_attentions = ()
 
         for layer_index, albert_layer in enumerate(self.albert_layers):
-            layer_output = albert_layer(hidden_states, attention_mask, head_mask[layer_index])
+            layer_output = albert_layer(hidden_states, attention_mask, head_mask[layer_index], smyrf=smyrf)
             hidden_states = layer_output[0]
 
             if self.output_attentions:
@@ -353,7 +353,6 @@ class AlbertTransformer(nn.Module):
         self.output_hidden_states = config.output_hidden_states
         self.embedding_hidden_mapping_in = nn.Linear(config.embedding_size, config.hidden_size)
         self.albert_layer_groups = nn.ModuleList([AlbertLayerGroup(config) for _ in range(config.num_hidden_groups)])
-
     def forward(self, hidden_states, attention_mask=None, head_mask=None):
         hidden_states = self.embedding_hidden_mapping_in(hidden_states)
 
@@ -363,17 +362,28 @@ class AlbertTransformer(nn.Module):
             all_hidden_states = (hidden_states,)
 
         for i in range(self.config.num_hidden_layers):
+
             # Number of layers in a hidden group
             layers_per_group = int(self.config.num_hidden_layers / self.config.num_hidden_groups)
 
             # Index of the hidden group
             group_idx = int(i / (self.config.num_hidden_layers / self.config.num_hidden_groups))
 
+            if i >= 6:
+                smyrf = True
+            else:
+                smyrf = False
+
+            if not self.config.smyrf:
+                smyrf = False
+
             layer_group_output = self.albert_layer_groups[group_idx](
                 hidden_states,
                 attention_mask,
                 head_mask[group_idx * layers_per_group : (group_idx + 1) * layers_per_group],
+                smyrf=smyrf,
             )
+
             hidden_states = layer_group_output[0]
 
             if self.output_attentions:
