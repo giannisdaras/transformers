@@ -267,12 +267,18 @@ class AlbertAttention(BertSelfAttention):
             context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
         else:
             bs, nH, N, dim = query_layer.shape
+            if attention_mask is not None:
+                attn_mask = attention_mask.squeeze()
+            else:
+                attn_mask = None
             context_layer_with_heads = self.smyrf(query_layer.reshape(-1, N, dim),
                                                   key_layer.reshape(-1, N, dim),
                                                   value_layer.reshape(-1, N, dim),
+                                                  attn_mask=attn_mask,
                                                   norm_factor=math.sqrt(self.attention_head_size))
             # concat heads
             context_layer = context_layer_with_heads.reshape(query_layer.shape).permute(0, 2, 1, 3)
+
         # Should find a better way to do this
         w = (
             self.dense.weight.t()
