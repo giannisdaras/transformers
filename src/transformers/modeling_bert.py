@@ -197,8 +197,20 @@ class BertSelfAttention(nn.Module):
         self.query = nn.Linear(config.hidden_size, self.all_head_size)
         self.key = nn.Linear(config.hidden_size, self.all_head_size)
         self.value = nn.Linear(config.hidden_size, self.all_head_size)
-
         self.dropout = nn.Dropout(config.attention_probs_dropout_prob)
+
+
+        if config.smyrf:
+            from smyrf.torch.attn import SmyrfAttention
+            self.n_hashes = config.n_hashes
+            self.q_cluster_size = config.q_cluster_size
+            self.k_cluster_size = config.k_cluster_size
+            self.r = config.r
+            self.smyrf = SmyrfAttention(n_hashes=self.n_hashes,
+                                        q_cluster_size=self.q_cluster_size,
+                                        k_cluster_size=self.k_cluster_size,
+                                        r=self.r,
+                                        dropout=config.attention_probs_dropout_prob)
 
     def transpose_for_scores(self, x):
         new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_head_size)
@@ -212,6 +224,7 @@ class BertSelfAttention(nn.Module):
         head_mask=None,
         encoder_hidden_states=None,
         encoder_attention_mask=None,
+        smyrf=False,
     ):
         mixed_query_layer = self.query(hidden_states)
 
@@ -230,29 +243,45 @@ class BertSelfAttention(nn.Module):
         key_layer = self.transpose_for_scores(mixed_key_layer)
         value_layer = self.transpose_for_scores(mixed_value_layer)
 
-        # Take the dot product between "query" and "key" to get the raw attention scores.
-        attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2))
-        attention_scores = attention_scores / math.sqrt(self.attention_head_size)
-        if attention_mask is not None:
-            # Apply the attention mask is (precomputed for all layers in BertModel forward() function)
-            attention_scores = attention_scores + attention_mask
+        if not smyrf:
+            # Take the dot product between "query" and "key" to get the raw attention scores.
+            attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2))
+            attention_scores = attention_scores / math.sqrt(self.attention_head_size)
+            if attention_mask is not None:
+                # Apply the attention mask is (precomputed for all layers in BertModel forward() function)
+                attention_scores = attention_scores + attention_mask
 
-        # Normalize the attention scores to probabilities.
-        attention_probs = nn.Softmax(dim=-1)(attention_scores)
+            # Normalize the attention scores to probabilities.
+            attention_probs = nn.Softmax(dim=-1)(attention_scores)
 
-        # This is actually dropping out entire tokens to attend to, which might
-        # seem a bit unusual, but is taken from the original Transformer paper.
-        attention_probs = self.dropout(attention_probs)
+            # This is actually dropping out entire tokens to attend to, which might
+            # seem a bit unusual, but is taken from the original Transformer paper.
+            attention_probs = self.dropout(attention_probs)
 
-        # Mask heads if we want to
-        if head_mask is not None:
-            attention_probs = attention_probs * head_mask
+            # Mask heads if we want to
+            if head_mask is not None:
+                attention_probs = attention_probs * head_mask
 
-        context_layer = torch.matmul(attention_probs, value_layer)
+            context_layer = torch.matmul(attention_probs, value_layer)
 
-        context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
-        new_context_layer_shape = context_layer.size()[:-2] + (self.all_head_size,)
-        context_layer = context_layer.view(*new_context_layer_shape)
+            context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
+            new_context_layer_shape = context_layer.size()[:-2] + (self.all_head_size,)
+            context_layer = context_layer.view(*new_context_layer_shape)
+        else:
+            bs, nH, N, dim = query_layer.shape
+            if attention_mask is not None:
+                attn_mask = attention_mask.squeeze()
+            else:
+                attn_mask = None
+            context_layer_with_heads = self.smyrf(query_layer.reshape(-1, N, dim),
+                                                  key_layer.reshape(-1, N, dim),
+                                                  value_layer.reshape(-1, N, dim),
+                                                  attn_mask=attn_mask,
+                                                  norm_factor=math.sqrt(self.attention_head_size))
+            # concat heads
+            context_layer = context_layer_with_heads.reshape(query_layer.shape).permute(0, 2, 1, 3)
+            new_context_layer_shape = context_layer.size()[:-2] + (self.all_head_size,)
+            context_layer = context_layer.reshape(*new_context_layer_shape)
 
         outputs = (context_layer, attention_probs) if self.output_attentions else (context_layer,)
         return outputs
@@ -309,10 +338,10 @@ class BertAttention(nn.Module):
         head_mask=None,
         encoder_hidden_states=None,
         encoder_attention_mask=None,
+        smyrf=False,
     ):
         self_outputs = self.self(
-            hidden_states, attention_mask, head_mask, encoder_hidden_states, encoder_attention_mask
-        )
+            hidden_states, attention_mask, head_mask, encoder_hidden_states, encoder_attention_mask, smyrf=smyrf)
         attention_output = self.output(self_outputs[0], hidden_states)
         outputs = (attention_output,) + self_outputs[1:]  # add attentions if we output them
         return outputs
@@ -365,7 +394,8 @@ class BertLayer(nn.Module):
         encoder_hidden_states=None,
         encoder_attention_mask=None,
     ):
-        self_attention_outputs = self.attention(hidden_states, attention_mask, head_mask)
+
+        self_attention_outputs = self.attention(hidden_states, attention_mask, head_mask, smyrf=True)
         attention_output = self_attention_outputs[0]
         outputs = self_attention_outputs[1:]  # add self attentions if we output attention weights
 

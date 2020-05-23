@@ -194,23 +194,17 @@ class AlbertAttention(BertSelfAttention):
         self.LayerNorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
         self.pruned_heads = set()
 
-        try:
-            if config.smyrf:
-                from smyrf.torch.attn import SmyrfAttention
-                self.n_hashes = config.n_hashes
-                self.q_cluster_size = config.q_cluster_size
-                self.k_cluster_size = config.k_cluster_size
-                self.r = config.r
-                self.smyrf = SmyrfAttention(n_hashes=self.n_hashes,
-                                            q_cluster_size=self.q_cluster_size,
-                                            k_cluster_size=self.k_cluster_size,
-                                            r=self.r,
-                                            dropout=config.attention_probs_dropout_prob)
-            else:
-                self.smyrf = False
-        except:
-            self.smyrf = False
-
+        if config.smyrf:
+            from smyrf.torch.attn import SmyrfAttention
+            self.n_hashes = config.n_hashes
+            self.q_cluster_size = config.q_cluster_size
+            self.k_cluster_size = config.k_cluster_size
+            self.r = config.r
+            self.smyrf = SmyrfAttention(n_hashes=self.n_hashes,
+                                        q_cluster_size=self.q_cluster_size,
+                                        k_cluster_size=self.k_cluster_size,
+                                        r=self.r,
+                                        dropout=config.attention_probs_dropout_prob)
     def prune_heads(self, heads):
         if len(heads) == 0:
             return
