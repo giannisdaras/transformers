@@ -386,6 +386,10 @@ class BertLayer(nn.Module):
         self.intermediate = BertIntermediate(config)
         self.output = BertOutput(config)
 
+        if config.smyrf:
+            self.smyrf = True
+        else:
+            self.smyrf = False
     def forward(
         self,
         hidden_states,
@@ -395,7 +399,7 @@ class BertLayer(nn.Module):
         encoder_attention_mask=None,
     ):
 
-        self_attention_outputs = self.attention(hidden_states, attention_mask, head_mask, smyrf=True)
+        self_attention_outputs = self.attention(hidden_states, attention_mask, head_mask, smyrf=self.smyrf)
         attention_output = self_attention_outputs[0]
         outputs = self_attention_outputs[1:]  # add self attentions if we output attention weights
 
