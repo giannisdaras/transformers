@@ -56,6 +56,8 @@ if _has_sklearn:
             return {"mcc": matthews_corrcoef(labels, preds)}
         elif task_name == "imdb":
             return {"acc": simple_accuracy(preds, labels)}
+        elif task_name == "boolq":
+            return {"acc": simple_accuracy(preds, labels)}
         elif task_name == "sst-2":
             return {"acc": simple_accuracy(preds, labels)}
         elif task_name == "mrpc":
