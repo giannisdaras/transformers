@@ -27,9 +27,12 @@ from .configuration_auto import (
     CTRLConfig,
     DistilBertConfig,
     ElectraConfig,
+    EncoderDecoderConfig,
     FlaubertConfig,
     GPT2Config,
+    LongformerConfig,
     OpenAIGPTConfig,
+    ReformerConfig,
     RobertaConfig,
     T5Config,
     TransfoXLConfig,
@@ -37,10 +40,12 @@ from .configuration_auto import (
     XLMRobertaConfig,
     XLNetConfig,
 )
+from .configuration_marian import MarianConfig
 from .configuration_utils import PretrainedConfig
 from .modeling_albert import (
     ALBERT_PRETRAINED_MODEL_ARCHIVE_MAP,
     AlbertForMaskedLM,
+    AlbertForPreTraining,
     AlbertForQuestionAnswering,
     AlbertForSequenceClassification,
     AlbertForTokenClassification,
@@ -55,6 +60,7 @@ from .modeling_bart import (
 from .modeling_bert import (
     BERT_PRETRAINED_MODEL_ARCHIVE_MAP,
     BertForMaskedLM,
+    BertForMultipleChoice,
     BertForPreTraining,
     BertForQuestionAnswering,
     BertForSequenceClassification,
@@ -64,6 +70,7 @@ from .modeling_bert import (
 from .modeling_camembert import (
     CAMEMBERT_PRETRAINED_MODEL_ARCHIVE_MAP,
     CamembertForMaskedLM,
+    CamembertForMultipleChoice,
     CamembertForSequenceClassification,
     CamembertForTokenClassification,
     CamembertModel,
@@ -81,9 +88,11 @@ from .modeling_electra import (
     ELECTRA_PRETRAINED_MODEL_ARCHIVE_MAP,
     ElectraForMaskedLM,
     ElectraForPreTraining,
+    ElectraForSequenceClassification,
     ElectraForTokenClassification,
     ElectraModel,
 )
+from .modeling_encoder_decoder import EncoderDecoderModel
 from .modeling_flaubert import (
     FLAUBERT_PRETRAINED_MODEL_ARCHIVE_MAP,
     FlaubertForQuestionAnsweringSimple,
@@ -92,10 +101,14 @@ from .modeling_flaubert import (
     FlaubertWithLMHeadModel,
 )
 from .modeling_gpt2 import GPT2_PRETRAINED_MODEL_ARCHIVE_MAP, GPT2LMHeadModel, GPT2Model
+from .modeling_longformer import LONGFORMER_PRETRAINED_MODEL_ARCHIVE_MAP, LongformerForMaskedLM, LongformerModel
+from .modeling_marian import MarianMTModel
 from .modeling_openai import OPENAI_GPT_PRETRAINED_MODEL_ARCHIVE_MAP, OpenAIGPTLMHeadModel, OpenAIGPTModel
+from .modeling_reformer import ReformerModel, ReformerModelWithLMHead
 from .modeling_roberta import (
     ROBERTA_PRETRAINED_MODEL_ARCHIVE_MAP,
     RobertaForMaskedLM,
+    RobertaForMultipleChoice,
     RobertaForQuestionAnswering,
     RobertaForSequenceClassification,
     RobertaForTokenClassification,
@@ -114,12 +127,14 @@ from .modeling_xlm import (
 from .modeling_xlm_roberta import (
     XLM_ROBERTA_PRETRAINED_MODEL_ARCHIVE_MAP,
     XLMRobertaForMaskedLM,
+    XLMRobertaForMultipleChoice,
     XLMRobertaForSequenceClassification,
     XLMRobertaForTokenClassification,
     XLMRobertaModel,
 )
 from .modeling_xlnet import (
     XLNET_PRETRAINED_MODEL_ARCHIVE_MAP,
+    XLNetForMultipleChoice,
     XLNetForQuestionAnsweringSimple,
     XLNetForSequenceClassification,
     XLNetForTokenClassification,
@@ -150,6 +165,7 @@ ALL_PRETRAINED_MODEL_ARCHIVE_MAP = dict(
         FLAUBERT_PRETRAINED_MODEL_ARCHIVE_MAP,
         XLM_ROBERTA_PRETRAINED_MODEL_ARCHIVE_MAP,
         ELECTRA_PRETRAINED_MODEL_ARCHIVE_MAP,
+        LONGFORMER_PRETRAINED_MODEL_ARCHIVE_MAP,
     ]
     for key, value, in pretrained_map.items()
 )
@@ -162,6 +178,7 @@ MODEL_MAPPING = OrderedDict(
         (CamembertConfig, CamembertModel),
         (XLMRobertaConfig, XLMRobertaModel),
         (BartConfig, BartModel),
+        (LongformerConfig, LongformerModel),
         (RobertaConfig, RobertaModel),
         (BertConfig, BertModel),
         (OpenAIGPTConfig, OpenAIGPTModel),
@@ -172,6 +189,7 @@ MODEL_MAPPING = OrderedDict(
         (XLMConfig, XLMModel),
         (CTRLConfig, CTRLModel),
         (ElectraConfig, ElectraModel),
+        (ReformerConfig, ReformerModel),
     ]
 )
 
@@ -179,10 +197,11 @@ MODEL_FOR_PRETRAINING_MAPPING = OrderedDict(
     [
         (T5Config, T5ForConditionalGeneration),
         (DistilBertConfig, DistilBertForMaskedLM),
-        (AlbertConfig, AlbertForMaskedLM),
+        (AlbertConfig, AlbertForPreTraining),
         (CamembertConfig, CamembertForMaskedLM),
         (XLMRobertaConfig, XLMRobertaForMaskedLM),
         (BartConfig, BartForConditionalGeneration),
+        (LongformerConfig, LongformerForMaskedLM),
         (RobertaConfig, RobertaForMaskedLM),
         (BertConfig, BertForPreTraining),
         (OpenAIGPTConfig, OpenAIGPTLMHeadModel),
@@ -203,7 +222,9 @@ MODEL_WITH_LM_HEAD_MAPPING = OrderedDict(
         (AlbertConfig, AlbertForMaskedLM),
         (CamembertConfig, CamembertForMaskedLM),
         (XLMRobertaConfig, XLMRobertaForMaskedLM),
+        (MarianConfig, MarianMTModel),
         (BartConfig, BartForConditionalGeneration),
+        (LongformerConfig, LongformerForMaskedLM),
         (RobertaConfig, RobertaForMaskedLM),
         (BertConfig, BertForMaskedLM),
         (OpenAIGPTConfig, OpenAIGPTLMHeadModel),
@@ -214,6 +235,8 @@ MODEL_WITH_LM_HEAD_MAPPING = OrderedDict(
         (XLMConfig, XLMWithLMHeadModel),
         (CTRLConfig, CTRLLMHeadModel),
         (ElectraConfig, ElectraForMaskedLM),
+        (EncoderDecoderConfig, EncoderDecoderModel),
+        (ReformerConfig, ReformerModelWithLMHead),
     ]
 )
 
@@ -229,6 +252,7 @@ MODEL_FOR_SEQUENCE_CLASSIFICATION_MAPPING = OrderedDict(
         (XLNetConfig, XLNetForSequenceClassification),
         (FlaubertConfig, FlaubertForSequenceClassification),
         (XLMConfig, XLMForSequenceClassification),
+        (ElectraConfig, ElectraForSequenceClassification),
     ]
 )
 
@@ -259,7 +283,18 @@ MODEL_FOR_TOKEN_CLASSIFICATION_MAPPING = OrderedDict(
 )
 
 
-class AutoModel(object):
+MODEL_FOR_MULTIPLE_CHOICE_MAPPING = OrderedDict(
+    [
+        (CamembertConfig, CamembertForMultipleChoice),
+        (XLMRobertaConfig, XLMRobertaForMultipleChoice),
+        (RobertaConfig, RobertaForMultipleChoice),
+        (BertConfig, BertForMultipleChoice),
+        (XLNetConfig, XLNetForMultipleChoice),
+    ]
+)
+
+
+class AutoModel:
     r"""
         :class:`~transformers.AutoModel` is a generic model class
         that will be instantiated as one of the base model classes of the library
@@ -286,6 +321,7 @@ class AutoModel(object):
                 The model class to instantiate is selected based on the configuration class:
 
                 - isInstance of `distilbert` configuration class: :class:`~transformers.DistilBertModel` (DistilBERT model)
+                - isInstance of `longformer` configuration class: :class:`~transformers.LongformerModel` (Longformer model)
                 - isInstance of `roberta` configuration class: :class:`~transformers.RobertaModel` (RoBERTa model)
                 - isInstance of `bert` configuration class: :class:`~transformers.BertModel` (Bert model)
                 - isInstance of `openai-gpt` configuration class: :class:`~transformers.OpenAIGPTModel` (OpenAI GPT model)
@@ -328,6 +364,7 @@ class AutoModel(object):
             - contains `albert`: :class:`~transformers.AlbertModel` (ALBERT model)
             - contains `camembert`: :class:`~transformers.CamembertModel` (CamemBERT model)
             - contains `xlm-roberta`: :class:`~transformers.XLMRobertaModel` (XLM-RoBERTa model)
+            - contains `longformer` :class:`~transformers.LongformerModel` (Longformer model)
             - contains `roberta`: :class:`~transformers.RobertaModel` (RoBERTa model)
             - contains `bert`: :class:`~transformers.BertModel` (Bert model)
             - contains `openai-gpt`: :class:`~transformers.OpenAIGPTModel` (OpenAI GPT model)
@@ -361,7 +398,7 @@ class AutoModel(object):
                 - the model is loaded by suppling a local directory as ``pretrained_model_name_or_path`` and a configuration JSON file named `config.json` is found in the directory.
 
             state_dict: (`optional`) dict:
-                an optional state dictionnary for the model to use instead of a state dictionary loaded from saved weights file.
+                an optional state dictionary for the model to use instead of a state dictionary loaded from saved weights file.
                 This option can be used if you want to create a model from a pretrained configuration but load your own weights.
                 In this case though, you should check if using :func:`~transformers.PreTrainedModel.save_pretrained` and :func:`~transformers.PreTrainedModel.from_pretrained` is not a simpler option.
 
@@ -380,7 +417,7 @@ class AutoModel(object):
                 The proxies are used on each request.
 
             output_loading_info: (`optional`) boolean:
-                Set to ``True`` to also return a dictionnary containing missing keys, unexpected keys and error messages.
+                Set to ``True`` to also return a dictionary containing missing keys, unexpected keys and error messages.
 
             kwargs: (`optional`) Remaining dictionary of keyword arguments:
                 These arguments will be passed to the configuration and the model.
@@ -410,7 +447,7 @@ class AutoModel(object):
         )
 
 
-class AutoModelForPreTraining(object):
+class AutoModelForPreTraining:
     r"""
         :class:`~transformers.AutoModelForPreTraining` is a generic model class
         that will be instantiated as one of the model classes of the library -with the architecture used for pretraining this model– when created with the `AutoModelForPreTraining.from_pretrained(pretrained_model_name_or_path)`
@@ -436,6 +473,7 @@ class AutoModelForPreTraining(object):
                 The model class to instantiate is selected based on the configuration class:
 
                 - isInstance of `distilbert` configuration class: :class:`~transformers.DistilBertForMaskedLM` (DistilBERT model)
+                - isInstance of `longformer` configuration class: :class:`~transformers.LongformerForMaskedLM` (Longformer model)
                 - isInstance of `roberta` configuration class: :class:`~transformers.RobertaForMaskedLM` (RoBERTa model)
                 - isInstance of `bert` configuration class: :class:`~transformers.BertForPreTraining` (Bert model)
                 - isInstance of `openai-gpt` configuration class: :class:`~transformers.OpenAIGPTLMHeadModel` (OpenAI GPT model)
@@ -477,6 +515,7 @@ class AutoModelForPreTraining(object):
             - contains `albert`: :class:`~transformers.AlbertForMaskedLM` (ALBERT model)
             - contains `camembert`: :class:`~transformers.CamembertForMaskedLM` (CamemBERT model)
             - contains `xlm-roberta`: :class:`~transformers.XLMRobertaForMaskedLM` (XLM-RoBERTa model)
+            - contains `longformer`: :class:`~transformers.LongformerForMaskedLM` (Longformer model)
             - contains `roberta`: :class:`~transformers.RobertaForMaskedLM` (RoBERTa model)
             - contains `bert`: :class:`~transformers.BertForPreTraining` (Bert model)
             - contains `openai-gpt`: :class:`~transformers.OpenAIGPTLMHeadModel` (OpenAI GPT model)
@@ -509,7 +548,7 @@ class AutoModelForPreTraining(object):
                 - the model is loaded by suppling a local directory as ``pretrained_model_name_or_path`` and a configuration JSON file named `config.json` is found in the directory.
 
             state_dict: (`optional`) dict:
-                an optional state dictionnary for the model to use instead of a state dictionary loaded from saved weights file.
+                an optional state dictionary for the model to use instead of a state dictionary loaded from saved weights file.
                 This option can be used if you want to create a model from a pretrained configuration but load your own weights.
                 In this case though, you should check if using :func:`~transformers.PreTrainedModel.save_pretrained` and :func:`~transformers.PreTrainedModel.from_pretrained` is not a simpler option.
             cache_dir: (`optional`) string:
@@ -523,7 +562,7 @@ class AutoModelForPreTraining(object):
                 A dictionary of proxy servers to use by protocol or endpoint, e.g.: {'http': 'foo.bar:3128', 'http://hostname': 'foo.bar:4012'}.
                 The proxies are used on each request.
             output_loading_info: (`optional`) boolean:
-                Set to ``True`` to also return a dictionnary containing missing keys, unexpected keys and error messages.
+                Set to ``True`` to also return a dictionary containing missing keys, unexpected keys and error messages.
             kwargs: (`optional`) Remaining dictionary of keyword arguments:
                 These arguments will be passed to the configuration and the model.
 
@@ -552,7 +591,7 @@ class AutoModelForPreTraining(object):
         )
 
 
-class AutoModelWithLMHead(object):
+class AutoModelWithLMHead:
     r"""
         :class:`~transformers.AutoModelWithLMHead` is a generic model class
         that will be instantiated as one of the language modeling model classes of the library
@@ -579,6 +618,7 @@ class AutoModelWithLMHead(object):
                 The model class to instantiate is selected based on the configuration class:
 
                 - isInstance of `distilbert` configuration class: :class:`~transformers.DistilBertForMaskedLM` (DistilBERT model)
+                - isInstance of `longformer` configuration class: :class:`~transformers.LongformerForMaskedLM` (Longformer model)
                 - isInstance of `roberta` configuration class: :class:`~transformers.RobertaForMaskedLM` (RoBERTa model)
                 - isInstance of `bert` configuration class: :class:`~transformers.BertForMaskedLM` (Bert model)
                 - isInstance of `openai-gpt` configuration class: :class:`~transformers.OpenAIGPTLMHeadModel` (OpenAI GPT model)
@@ -621,6 +661,7 @@ class AutoModelWithLMHead(object):
             - contains `albert`: :class:`~transformers.AlbertForMaskedLM` (ALBERT model)
             - contains `camembert`: :class:`~transformers.CamembertForMaskedLM` (CamemBERT model)
             - contains `xlm-roberta`: :class:`~transformers.XLMRobertaForMaskedLM` (XLM-RoBERTa model)
+            - contains `longformer`: :class:`~transformers.LongformerForMaskedLM` (Longformer model)
             - contains `roberta`: :class:`~transformers.RobertaForMaskedLM` (RoBERTa model)
             - contains `bert`: :class:`~transformers.BertForMaskedLM` (Bert model)
             - contains `openai-gpt`: :class:`~transformers.OpenAIGPTLMHeadModel` (OpenAI GPT model)
@@ -653,7 +694,7 @@ class AutoModelWithLMHead(object):
                 - the model is loaded by suppling a local directory as ``pretrained_model_name_or_path`` and a configuration JSON file named `config.json` is found in the directory.
 
             state_dict: (`optional`) dict:
-                an optional state dictionnary for the model to use instead of a state dictionary loaded from saved weights file.
+                an optional state dictionary for the model to use instead of a state dictionary loaded from saved weights file.
                 This option can be used if you want to create a model from a pretrained configuration but load your own weights.
                 In this case though, you should check if using :func:`~transformers.PreTrainedModel.save_pretrained` and :func:`~transformers.PreTrainedModel.from_pretrained` is not a simpler option.
             cache_dir: (`optional`) string:
@@ -667,7 +708,7 @@ class AutoModelWithLMHead(object):
                 A dictionary of proxy servers to use by protocol or endpoint, e.g.: {'http': 'foo.bar:3128', 'http://hostname': 'foo.bar:4012'}.
                 The proxies are used on each request.
             output_loading_info: (`optional`) boolean:
-                Set to ``True`` to also return a dictionnary containing missing keys, unexpected keys and error messages.
+                Set to ``True`` to also return a dictionary containing missing keys, unexpected keys and error messages.
             kwargs: (`optional`) Remaining dictionary of keyword arguments:
                 These arguments will be passed to the configuration and the model.
 
@@ -696,7 +737,7 @@ class AutoModelWithLMHead(object):
         )
 
 
-class AutoModelForSequenceClassification(object):
+class AutoModelForSequenceClassification:
     r"""
         :class:`~transformers.AutoModelForSequenceClassification` is a generic model class
         that will be instantiated as one of the sequence classification model classes of the library
@@ -792,7 +833,7 @@ class AutoModelForSequenceClassification(object):
                 - the model is loaded by suppling a local directory as ``pretrained_model_name_or_path`` and a configuration JSON file named `config.json` is found in the directory.
 
             state_dict: (`optional`) dict:
-                an optional state dictionnary for the model to use instead of a state dictionary loaded from saved weights file.
+                an optional state dictionary for the model to use instead of a state dictionary loaded from saved weights file.
                 This option can be used if you want to create a model from a pretrained configuration but load your own weights.
                 In this case though, you should check if using :func:`~transformers.PreTrainedModel.save_pretrained` and :func:`~transformers.PreTrainedModel.from_pretrained` is not a simpler option.
 
@@ -811,7 +852,7 @@ class AutoModelForSequenceClassification(object):
                 The proxies are used on each request.
 
             output_loading_info: (`optional`) boolean:
-                Set to ``True`` to also return a dictionnary containing missing keys, unexpected keys and error messages.
+                Set to ``True`` to also return a dictionary containing missing keys, unexpected keys and error messages.
 
             kwargs: (`optional`) Remaining dictionary of keyword arguments:
                 These arguments will be passed to the configuration and the model.
@@ -843,7 +884,7 @@ class AutoModelForSequenceClassification(object):
         )
 
 
-class AutoModelForQuestionAnswering(object):
+class AutoModelForQuestionAnswering:
     r"""
         :class:`~transformers.AutoModelForQuestionAnswering` is a generic model class
         that will be instantiated as one of the question answering model classes of the library
@@ -879,7 +920,7 @@ class AutoModelForQuestionAnswering(object):
         Examples::
 
             config = BertConfig.from_pretrained('bert-base-uncased')    # Download configuration from S3 and cache.
-            model = AutoModelForSequenceClassification.from_config(config)  # E.g. model was saved using `save_pretrained('./test/saved_model/')`
+            model = AutoModelForQuestionAnswering.from_config(config)  # E.g. model was saved using `save_pretrained('./test/saved_model/')`
         """
         for config_class, model_class in MODEL_FOR_QUESTION_ANSWERING_MAPPING.items():
             if isinstance(config, config_class):
@@ -934,7 +975,7 @@ class AutoModelForQuestionAnswering(object):
                 - the model is loaded by suppling a local directory as ``pretrained_model_name_or_path`` and a configuration JSON file named `config.json` is found in the directory.
 
             state_dict: (`optional`) dict:
-                an optional state dictionnary for the model to use instead of a state dictionary loaded from saved weights file.
+                an optional state dictionary for the model to use instead of a state dictionary loaded from saved weights file.
                 This option can be used if you want to create a model from a pretrained configuration but load your own weights.
                 In this case though, you should check if using :func:`~transformers.PreTrainedModel.save_pretrained` and :func:`~transformers.PreTrainedModel.from_pretrained` is not a simpler option.
 
@@ -950,7 +991,7 @@ class AutoModelForQuestionAnswering(object):
                 The proxies are used on each request.
 
             output_loading_info: (`optional`) boolean:
-                Set to ``True`` to also return a dictionnary containing missing keys, unexpected keys and error messages.
+                Set to ``True`` to also return a dictionary containing missing keys, unexpected keys and error messages.
 
             kwargs: (`optional`) Remaining dictionary of keyword arguments:
                 These arguments will be passed to the configuration and the model.
@@ -1079,7 +1120,7 @@ class AutoModelForTokenClassification:
                 - the model is loaded by suppling a local directory as ``pretrained_model_name_or_path`` and a configuration JSON file named `config.json` is found in the directory.
 
             state_dict: (`optional`) dict:
-                an optional state dictionnary for the model to use instead of a state dictionary loaded from saved weights file.
+                an optional state dictionary for the model to use instead of a state dictionary loaded from saved weights file.
                 This option can be used if you want to create a model from a pretrained configuration but load your own weights.
                 In this case though, you should check if using :func:`~transformers.PreTrainedModel.save_pretrained` and :func:`~transformers.PreTrainedModel.from_pretrained` is not a simpler option.
 
@@ -1095,7 +1136,7 @@ class AutoModelForTokenClassification:
                 The proxies are used on each request.
 
             output_loading_info: (`optional`) boolean:
-                Set to ``True`` to also return a dictionnary containing missing keys, unexpected keys and error messages.
+                Set to ``True`` to also return a dictionary containing missing keys, unexpected keys and error messages.
 
             kwargs: (`optional`) Remaining dictionary of keyword arguments:
                 These arguments will be passed to the configuration and the model.
@@ -1124,5 +1165,57 @@ class AutoModelForTokenClassification:
                 config.__class__,
                 cls.__name__,
                 ", ".join(c.__name__ for c in MODEL_FOR_TOKEN_CLASSIFICATION_MAPPING.keys()),
+            )
+        )
+
+
+class AutoModelForMultipleChoice:
+    r"""
+        :class:`~transformers.AutoModelForMultipleChoice` is a generic model class
+        that will be instantiated as one of the multiple choice model classes of the library
+        when created with the `AutoModelForMultipleChoice.from_pretrained(pretrained_model_name_or_path)`
+        class method.
+
+        This class cannot be instantiated using `__init__()` (throws an error).
+    """
+
+    def __init__(self):
+        raise EnvironmentError(
+            "AutoModelForMultipleChoice is designed to be instantiated "
+            "using the `AutoModelForMultipleChoice.from_pretrained(pretrained_model_name_or_path)` or "
+            "`AutoModelForMultipleChoice.from_config(config)` methods."
+        )
+
+    @classmethod
+    def from_config(cls, config):
+        for config_class, model_class in MODEL_FOR_MULTIPLE_CHOICE_MAPPING.items():
+            if isinstance(config, config_class):
+                return model_class(config)
+
+        raise ValueError(
+            "Unrecognized configuration class {} for this kind of AutoModel: {}.\n"
+            "Model type should be one of {}.".format(
+                config.__class__,
+                cls.__name__,
+                ", ".join(c.__name__ for c in MODEL_FOR_MULTIPLE_CHOICE_MAPPING.keys()),
+            )
+        )
+
+    @classmethod
+    def from_pretrained(cls, pretrained_model_name_or_path, *model_args, **kwargs):
+        config = kwargs.pop("config", None)
+        if not isinstance(config, PretrainedConfig):
+            config = AutoConfig.from_pretrained(pretrained_model_name_or_path, **kwargs)
+
+        for config_class, model_class in MODEL_FOR_MULTIPLE_CHOICE_MAPPING.items():
+            if isinstance(config, config_class):
+                return model_class.from_pretrained(pretrained_model_name_or_path, *model_args, config=config, **kwargs)
+
+        raise ValueError(
+            "Unrecognized configuration class {} for this kind of AutoModel: {}.\n"
+            "Model type should be one of {}.".format(
+                config.__class__,
+                cls.__name__,
+                ", ".join(c.__name__ for c in MODEL_FOR_MULTIPLE_CHOICE_MAPPING.keys()),
             )
         )

@@ -21,7 +21,7 @@ from transformers import is_torch_available
 
 from .test_configuration_common import ConfigTester
 from .test_modeling_common import ModelTesterMixin, ids_tensor
-from .utils import CACHE_DIR, require_torch, slow, torch_device
+from .utils import require_torch, slow, torch_device
 
 
 if is_torch_available():
@@ -61,7 +61,7 @@ class XLNetModelTest(ModelTesterMixin, unittest.TestCase):
         def __init__(
             self,
             parent,
-            batch_size=13,
+            batch_size=14,
             seq_length=7,
             mem_len=10,
             clamp_len=-1,
@@ -509,7 +509,7 @@ class XLNetModelTest(ModelTesterMixin, unittest.TestCase):
     @slow
     def test_model_from_pretrained(self):
         for model_name in list(XLNET_PRETRAINED_MODEL_ARCHIVE_MAP.keys())[:1]:
-            model = XLNetModel.from_pretrained(model_name, cache_dir=CACHE_DIR)
+            model = XLNetModel.from_pretrained(model_name)
             self.assertIsNotNone(model)
 
 
@@ -517,6 +517,7 @@ class XLNetModelLanguageGenerationTest(unittest.TestCase):
     @slow
     def test_lm_generate_xlnet_base_cased(self):
         model = XLNetLMHeadModel.from_pretrained("xlnet-base-cased")
+        model.to(torch_device)
         input_ids = torch.tensor(
             [
                 [

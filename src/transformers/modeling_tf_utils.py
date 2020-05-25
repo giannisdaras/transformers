@@ -319,6 +319,7 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
         resume_download = kwargs.pop("resume_download", False)
         proxies = kwargs.pop("proxies", None)
         output_loading_info = kwargs.pop("output_loading_info", False)
+        use_cdn = kwargs.pop("use_cdn", True)
 
         # Load config if we don't provide a configuration
         if not isinstance(config, PretrainedConfig):
@@ -358,7 +359,9 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
                 archive_file = pretrained_model_name_or_path + ".index"
             else:
                 archive_file = hf_bucket_url(
-                    pretrained_model_name_or_path, postfix=(WEIGHTS_NAME if from_pt else TF2_WEIGHTS_NAME)
+                    pretrained_model_name_or_path,
+                    filename=(WEIGHTS_NAME if from_pt else TF2_WEIGHTS_NAME),
+                    use_cdn=use_cdn,
                 )
 
             # redirect to the cache, if necessary
@@ -444,16 +447,13 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
     def prepare_inputs_for_generation(self, inputs, **kwargs):
         return {"inputs": inputs}
 
-    def _do_output_past(self, outputs):
-        has_output_past = hasattr(self.config, "output_past") and self.config.output_past
-        has_mem_len = hasattr(self.config, "mem_len") and self.config.mem_len
-
-        if has_output_past and not has_mem_len and len(outputs) > 1:
-            return True
-        elif has_mem_len and self.config.mem_len > 0 and len(outputs) > 1:
-            return True
-
-        return False
+    def _use_cache(self, outputs, use_cache):
+        """During generation, decide whether to pass the `past` variable to the next forward pass."""
+        if len(outputs) <= 1 or use_cache is False:
+            return False
+        if hasattr(self.config, "mem_len") and self.config.mem_len == 0:
+            return False
+        return True
 
     def generate(
         self,
@@ -476,6 +476,7 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
         num_return_sequences=None,
         attention_mask=None,
         decoder_start_token_id=None,
+        use_cache=None,
     ):
         r""" Generates sequences for models with a LM head. The method currently supports greedy or penalized greedy decoding, sampling with top-k or nucleus sampling
         and beam-search.
@@ -490,7 +491,7 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
 
             input_ids: (`optional`) `tf.Tensor` of `dtype=tf.int32` of shape `(batch_size, sequence_length)`
                 The sequence used as a prompt for the generation. If `None` the method initializes
-                it as an empty `torch.LongTensor` of shape `(1,)`.
+                it as an empty `tf.Tensor` of shape `(1,)`.
 
             max_length: (`optional`) int
                 The max length of the sequence to be generated.  Between 1 and infinity. Default to 20.
@@ -551,6 +552,9 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
                 If an encoder-decoder model starts decoding with a different token than BOS.
                 Defaults to `None` and is changed to `BOS` later.
 
+            use_cache: (`optional`) bool
+                If `use_cache` is True, past key values are used to speed up decoding if applicable to model. Defaults to `True`.
+
         Return:
 
             output: `tf.Tensor` of `dtype=tf.int32` shape `(batch_size * num_return_sequences, sequence_length)`
@@ -605,6 +609,7 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
         min_length = min_length if min_length is not None else self.config.min_length
         do_sample = do_sample if do_sample is not None else self.config.do_sample
         early_stopping = early_stopping if early_stopping is not None else self.config.early_stopping
+        use_cache = use_cache if use_cache is not None else self.config.use_cache
         num_beams = num_beams if num_beams is not None else self.config.num_beams
         temperature = temperature if temperature is not None else self.config.temperature
         top_k = top_k if top_k is not None else self.config.top_k
@@ -634,6 +639,7 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
         assert isinstance(min_length, int) and min_length >= 0, "`min_length` should be a positive integer."
         assert isinstance(do_sample, bool), "`do_sample` should be a boolean."
         assert isinstance(early_stopping, bool), "`early_stopping` should be a boolean."
+        assert isinstance(use_cache, bool), "`use_cache` should be a boolean."
         assert isinstance(num_beams, int) and num_beams > 0, "`num_beams` should be a strictely positive integer."
         assert temperature > 0, "`temperature` should be strictely positive."
         assert isinstance(top_k, int) and top_k >= 0, "`top_k` should be a positive integer."
@@ -704,6 +710,21 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
             effective_batch_size = batch_size
             effective_batch_mult = 1
 
+        if self.config.is_encoder_decoder:
+            if decoder_start_token_id is None:
+                decoder_start_token_id = bos_token_id
+
+            assert (
+                decoder_start_token_id is not None
+            ), "decoder_start_token_id or bos_token_id has to be defined for encoder-decoder generation"
+            assert hasattr(self, "get_encoder"), "{} should have a 'get_encoder' function defined".format(self)
+            assert callable(self.get_encoder), "{} should be a method".format(self.get_encoder)
+
+            # get encoder and store encoder outputs
+            encoder = self.get_encoder()
+
+            encoder_outputs = encoder(input_ids, attention_mask=attention_mask)
+
         # Expand input ids if num_beams > 1 or num_return_sequences > 1
         if num_return_sequences > 1 or num_beams > 1:
             input_ids_len = shape_list(input_ids)[-1]
@@ -721,23 +742,22 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
             )  # shape: (batch_size * num_return_sequences * num_beams, cur_len)
 
         if self.config.is_encoder_decoder:
-            if decoder_start_token_id is None:
-                decoder_start_token_id = bos_token_id
-
-            assert (
-                decoder_start_token_id is not None
-            ), "decoder_start_token_id or bos_token_id has to be defined for encoder-decoder generation"
-            assert hasattr(self, "get_encoder"), "{} should have a 'get_encoder' function defined".format(self)
-            assert callable(self.get_encoder), "{} should be a method".format(self.get_encoder)
-
-            # get encoder and store encoder outputs
-            encoder = self.get_encoder()
-
-            encoder_outputs = encoder(input_ids, attention_mask=attention_mask)
 
             # create empty decoder_input_ids
             input_ids = tf.ones((effective_batch_size * num_beams, 1), dtype=tf.int32,) * decoder_start_token_id
             cur_len = 1
+
+            assert (
+                batch_size == encoder_outputs[0].shape[0]
+            ), f"expected encoder_outputs[0] to have 1st dimension bs={batch_size}, got {encoder_outputs[0].shape[0]} "
+
+            # expand batch_idx to assign correct encoder output for expanded input_ids (due to num_beams > 1 and num_return_sequences > 1)
+            expanded_batch_idxs = tf.reshape(
+                tf.repeat(tf.expand_dims(tf.range(batch_size), -1), repeats=num_beams * effective_batch_mult, axis=1),
+                shape=(-1,),
+            )
+            # expand encoder_outputs
+            encoder_outputs = (tf.gather(encoder_outputs[0], expanded_batch_idxs, axis=0), *encoder_outputs[1:])
 
         else:
             encoder_outputs = None
@@ -768,6 +788,7 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
                 vocab_size=vocab_size,
                 encoder_outputs=encoder_outputs,
                 attention_mask=attention_mask,
+                use_cache=use_cache,
             )
         else:
             output = self._generate_no_beam_search(
@@ -790,6 +811,7 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
                 vocab_size=vocab_size,
                 encoder_outputs=encoder_outputs,
                 attention_mask=attention_mask,
+                use_cache=use_cache,
             )
 
         return output
@@ -815,6 +837,7 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
         vocab_size,
         encoder_outputs,
         attention_mask,
+        use_cache,
     ):
         """ Generate sequences for each example without beam search (num_beams == 1).
             All returned sequence are generated independantly.
@@ -827,12 +850,14 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
         past = encoder_outputs  # defined for encoder-decoder models, None for decoder-only models
 
         while cur_len < max_length:
-            model_inputs = self.prepare_inputs_for_generation(input_ids, past=past, attention_mask=attention_mask)
+            model_inputs = self.prepare_inputs_for_generation(
+                input_ids, past=past, attention_mask=attention_mask, use_cache=use_cache
+            )
             outputs = self(**model_inputs)
             next_token_logits = outputs[0][:, -1, :]
 
             # if model has past, then set the past variable to speed up decoding
-            if self._do_output_past(outputs):
+            if self._use_cache(outputs, use_cache):
                 past = outputs[1]
 
             # repetition penalty from CTRL paper (https://arxiv.org/abs/1909.05858)
@@ -904,7 +929,9 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
             else:
                 tokens_to_add = next_token
 
+            # add token and increase length by one
             input_ids = tf.concat([input_ids, tf.expand_dims(tokens_to_add, -1)], 1)
+            cur_len = cur_len + 1
 
             if eos_token_id is not None:
                 eos_in_sents = tokens_to_add == eos_token_id
@@ -930,8 +957,6 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
                     [attention_mask, tf.ones((shape_list(attention_mask)[0], 1), dtype=tf.int32)], axis=-1
                 )
 
-            cur_len = cur_len + 1
-
         # if there are different sentences lengths in the batch, some batches have to be padded
         min_sent_length = tf.math.reduce_min(sent_lengths)
         max_sent_length = tf.math.reduce_max(sent_lengths)
@@ -945,7 +970,7 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
                 tf.expand_dims(sent_lengths, -1), [batch_size, max_sent_length]
             )
             broad_casted_range = tf.transpose(
-                tf.broadcast_to(tf.expand_dims(tf.range(max_length), -1), [max_length, batch_size])
+                tf.broadcast_to(tf.expand_dims(tf.range(max_sent_length), -1), [max_sent_length, batch_size])
             )
 
             decoded = tf.where(broad_casted_range < broad_casted_sent_lengths, input_ids, padding)
@@ -979,6 +1004,7 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
         vocab_size,
         encoder_outputs,
         attention_mask,
+        use_cache,
     ):
         """ Generate sequences for each example with beam search.
         """
@@ -1006,12 +1032,14 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
         done = [False for _ in range(batch_size)]
 
         while cur_len < max_length:
-            model_inputs = self.prepare_inputs_for_generation(input_ids, past=past, attention_mask=attention_mask)
+            model_inputs = self.prepare_inputs_for_generation(
+                input_ids, past=past, attention_mask=attention_mask, use_cache=use_cache
+            )
             outputs = self(**model_inputs)  # (batch_size * num_beams, cur_len, vocab_size)
             next_token_logits = outputs[0][:, -1, :]  # (batch_size * num_beams, vocab_size)
 
             # if model has past, then set the past variable to speed up decoding
-            if self._do_output_past(outputs):
+            if self._use_cache(outputs, use_cache):
                 past = outputs[1]
 
             # repetition penalty (from CTRL paper https://arxiv.org/abs/1909.05858)
@@ -1177,9 +1205,11 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
             beam_tokens = tf.convert_to_tensor([x[1] for x in next_batch_beam], dtype=tf.int32)
             beam_idx = tf.convert_to_tensor([x[2] for x in next_batch_beam], dtype=tf.int32)
 
-            # re-order batch
+            # re-order batch and update current length
             input_ids = tf.stack([tf.identity(input_ids[x, :]) for x in beam_idx])
             input_ids = tf.concat([input_ids, tf.expand_dims(beam_tokens, 1)], axis=-1)
+            cur_len = cur_len + 1
+
             # re-order internal states
             if past is not None:
                 past = self._reorder_cache(past, beam_idx)
@@ -1189,9 +1219,6 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
                 attention_mask = tf.concat(
                     [attention_mask, tf.ones((shape_list(attention_mask)[0], 1), dtype=tf.int32)], axis=-1
                 )
-
-            # update current length
-            cur_len = cur_len + 1
 
         # finalize all open beam hypotheses and end to generated hypotheses
         for batch_idx in range(batch_size):
@@ -1274,17 +1301,7 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
 
     @staticmethod
     def _reorder_cache(past, beam_idx):
-        reordered_past = []
-        for layer_past in past:
-            # get the correct batch idx from layer past batch dim
-            # batch dim of `past` and `mems` is at 2nd position
-            reordered_layer_past = [tf.identity(tf.expand_dims(layer_past[:, i], 1)) for i in beam_idx]
-            reordered_layer_past = tf.concat(reordered_layer_past, axis=1)
-            # check that shape matches
-            assert shape_list(reordered_layer_past) == shape_list(layer_past)
-            reordered_past.append(reordered_layer_past)
-        past = tuple(reordered_past)
-        return past
+        return tuple(tf.gather(layer_past, beam_idx, axis=1) for layer_past in past)
 
 
 def _create_next_token_logits_penalties(input_ids, logits, repetition_penalty):
